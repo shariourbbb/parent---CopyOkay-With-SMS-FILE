@@ -1,0 +1,3 @@
+Apni jodi chanch app tar Icon hide korte (mane launcher-e icon thakbe na), tobe ami setar logic-o add kore dite pari. Eta "Market Value" aro baraye dibe.
+
+Ekhon project ta ekbar build kore dekhun. Kono error ase kina ba aro kichu lagbe kina bolun!_
